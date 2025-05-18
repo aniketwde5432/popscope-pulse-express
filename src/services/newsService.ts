@@ -28,26 +28,66 @@ export async function fetchNewsByCategory(
   category: string
 ): Promise<NewsArticle[]> {
   try {
-    // First try News API
-    const newsApiArticles = await fetchFromNewsAPI(category);
-    if (newsApiArticles.length > 0) {
-      return newsApiArticles;
+    // Get the current timestamp for recent article filtering
+    const currentDate = new Date();
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(currentDate.getDate() - 3); // Only show news from the last 3 days
+    
+    console.log(`Fetching ${category} news from the last 72 hours`);
+    
+    // Try multiple sources and aggregate results
+    const sources = [
+      fetchFromNewsAPI(category),
+      fetchFromBingNewsAPI(category),
+      fetchFromGNewsAPI(category),
+      fetchFromRSSFeeds(category),
+    ];
+    
+    const results = await Promise.allSettled(sources);
+    
+    // Combine all successful results
+    let allArticles: NewsArticle[] = [];
+    
+    results.forEach((result) => {
+      if (result.status === "fulfilled" && result.value && result.value.length > 0) {
+        allArticles = [...allArticles, ...result.value];
+      }
+    });
+    
+    // Filter for recent articles only (last 3 days)
+    const recentArticles = allArticles.filter(article => {
+      try {
+        const pubDate = new Date(article.publishedAt);
+        return !isNaN(pubDate.getTime()) && pubDate >= threeDaysAgo;
+      } catch (e) {
+        // If date parsing fails, include the article anyway
+        return true;
+      }
+    });
+    
+    // If no articles found, use fallback data
+    if (recentArticles.length === 0) {
+      console.log("No articles found from APIs, using fallback data");
+      return getFallbackArticles(category);
     }
     
-    // If News API fails, try Bing News API
-    const bingNewsArticles = await fetchFromBingNewsAPI(category);
-    if (bingNewsArticles.length > 0) {
-      return bingNewsArticles;
-    }
+    // Remove duplicates based on title similarity
+    const uniqueArticles = removeDuplicateArticles(recentArticles);
     
-    // If both fail, try GNews API
-    const gnewsArticles = await fetchFromGNewsAPI(category);
-    if (gnewsArticles.length > 0) {
-      return gnewsArticles;
-    }
+    // Add trending/breaking badges based on recency and patterns in title
+    const processedArticles = addArticleBadges(uniqueArticles);
     
-    // If all APIs fail, use fallback data
-    return getFallbackArticles(category);
+    // Sort by date (newest first)
+    processedArticles.sort((a, b) => {
+      try {
+        return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+      } catch {
+        return 0;
+      }
+    });
+    
+    console.log(`Fetched ${processedArticles.length} unique ${category} articles`);
+    return processedArticles;
     
   } catch (error) {
     console.error("Error fetching news:", error);
@@ -77,8 +117,8 @@ async function fetchFromNewsAPI(category: string): Promise<NewsArticle[]> {
     
     const query = categoryQueries[category] || "entertainment";
     const endpoint = category === "trending" 
-      ? `${baseUrl}/top-headlines?category=entertainment&apiKey=${newsApiKey}&language=en`
-      : `${baseUrl}/everything?q=${encodeURIComponent(query)}&apiKey=${newsApiKey}&language=en&sortBy=publishedAt`;
+      ? `${baseUrl}/top-headlines?category=entertainment&apiKey=${newsApiKey}&language=en&pageSize=25`
+      : `${baseUrl}/everything?q=${encodeURIComponent(query)}&apiKey=${newsApiKey}&language=en&sortBy=publishedAt&pageSize=25`;
     
     const response = await fetch(endpoint);
     
@@ -88,9 +128,13 @@ async function fetchFromNewsAPI(category: string): Promise<NewsArticle[]> {
     
     const data = await response.json();
     
+    if (!data.articles || data.articles.length === 0) {
+      return [];
+    }
+    
     // Transform data to match our NewsArticle type
     return data.articles.map((article: any, index: number) => ({
-      id: `${category}-${index}-${Date.now()}`,
+      id: `newsapi-${category}-${index}-${Date.now()}`,
       source: {
         id: article.source?.id || "newsapi",
         name: article.source?.name || "News API"
@@ -103,9 +147,9 @@ async function fetchFromNewsAPI(category: string): Promise<NewsArticle[]> {
       publishedAt: article.publishedAt,
       content: article.content,
       category,
-      isTrending: Math.random() > 0.7,
-      isBreaking: Math.random() > 0.9,
-      isEditorsPick: Math.random() > 0.8
+      isTrending: false,
+      isBreaking: false,
+      isEditorsPick: false
     }));
   } catch (error) {
     console.error("Error fetching from News API:", error);
@@ -133,7 +177,7 @@ async function fetchFromBingNewsAPI(category: string): Promise<NewsArticle[]> {
     };
     
     const query = categoryQueries[category] || "entertainment news";
-    const endpoint = `${baseUrl}?q=${encodeURIComponent(query)}&count=10&mkt=en-US`;
+    const endpoint = `${baseUrl}?q=${encodeURIComponent(query)}&count=25&mkt=en-US&freshness=Day`;
     
     const response = await fetch(endpoint, {
       headers: {
@@ -147,9 +191,13 @@ async function fetchFromBingNewsAPI(category: string): Promise<NewsArticle[]> {
     
     const data = await response.json();
     
+    if (!data.value || data.value.length === 0) {
+      return [];
+    }
+    
     // Transform data to match our NewsArticle type
     return data.value.map((article: any, index: number) => ({
-      id: `${category}-${index}-${Date.now()}`,
+      id: `bing-${category}-${index}-${Date.now()}`,
       source: {
         id: article.provider?.[0]?.name || "bing",
         name: article.provider?.[0]?.name || "Bing News"
@@ -162,9 +210,9 @@ async function fetchFromBingNewsAPI(category: string): Promise<NewsArticle[]> {
       publishedAt: article.datePublished,
       content: article.description,
       category,
-      isTrending: Math.random() > 0.7,
-      isBreaking: Math.random() > 0.9,
-      isEditorsPick: Math.random() > 0.8
+      isTrending: false,
+      isBreaking: false,
+      isEditorsPick: false
     }));
   } catch (error) {
     console.error("Error fetching from Bing News API:", error);
@@ -196,27 +244,27 @@ async function fetchFromGNewsAPI(category: string): Promise<NewsArticle[]> {
     
     // Adjust request based on category
     const endpoint = category === "trending" 
-      ? `${baseUrl}/top-headlines?topic=entertainment&apikey=${apiKey}&lang=en&max=10` 
-      : `${baseUrl}/search?q=${encodeURIComponent(query)}&apikey=${apiKey}&lang=en&max=10`;
+      ? `${baseUrl}/top-headlines?topic=entertainment&apikey=${apiKey}&lang=en&max=25` 
+      : `${baseUrl}/search?q=${encodeURIComponent(query)}&apikey=${apiKey}&lang=en&max=25`;
     
-    console.log(`Fetching news for category: ${category}`);
+    console.log(`Fetching news from GNews for category: ${category}`);
     const response = await fetch(endpoint);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch news: ${response.status}`);
+      throw new Error(`Failed to fetch GNews: ${response.status}`);
     }
     
     const data = await response.json();
     
     if (!data.articles || data.articles.length === 0) {
-      throw new Error('No articles found');
+      return [];
     }
     
     // Transform data to match our NewsArticle type
     return data.articles.map((article: any, index: number) => ({
-      id: `${category}-${index}-${Date.now()}`,
+      id: `gnews-${category}-${index}-${Date.now()}`,
       source: {
-        id: article.source?.id || "gnews",
+        id: article.source?.name?.toLowerCase().replace(/\s+/g, '-') || "gnews",
         name: article.source?.name || "GNews"
       },
       author: article.author,
@@ -227,14 +275,229 @@ async function fetchFromGNewsAPI(category: string): Promise<NewsArticle[]> {
       publishedAt: article.publishedAt,
       content: article.content,
       category,
-      isTrending: Math.random() > 0.7,
-      isBreaking: Math.random() > 0.9,
-      isEditorsPick: Math.random() > 0.8
+      isTrending: false,
+      isBreaking: false,
+      isEditorsPick: false
     }));
   } catch (error) {
     console.error("Error fetching from GNews API:", error);
     return [];
   }
+}
+
+// RSS Feed implementation
+async function fetchFromRSSFeeds(category: string): Promise<NewsArticle[]> {
+  try {
+    // Map categories to relevant RSS feeds
+    const categoryFeeds: Record<string, string[]> = {
+      anime: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.animenewsnetwork.com/all/rss.xml",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.crunchyroll.com/rss/anime"
+      ],
+      manga: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.animenewsnetwork.com/all/rss.xml",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.manga-news.com/index.php/feed/"
+      ],
+      bollywood: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.pinkvilla.com/rss/entertainment.xml"
+      ],
+      hollywood: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://variety.com/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.hollywoodreporter.com/feed"
+      ],
+      tvshows: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://ew.com/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.tvguide.com/rss/breaking-news/"
+      ],
+      comics: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.comicbookmovie.com/rss/all-news.php",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.cbr.com/feed/"
+      ],
+      kpop: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.allkpop.com/rss",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.soompi.com/feed"
+      ],
+      celebrity: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.tmz.com/rss.xml",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://people.com/tag/celebrity/feed/"
+      ],
+      upcoming: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://movieweb.com/rss/movie-news/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.denofgeek.com/feed/"
+      ],
+      trending: [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://variety.com/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.hollywoodreporter.com/feed",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.cinemablend.com/rss/topic/news/television"
+      ]
+    };
+    
+    const feeds = categoryFeeds[category] || categoryFeeds.trending;
+    
+    if (!feeds || feeds.length === 0) {
+      return [];
+    }
+    
+    const allArticles: NewsArticle[] = [];
+    
+    // Fetch and parse all feeds for this category
+    await Promise.all(feeds.map(async (feedUrl) => {
+      try {
+        const response = await fetch(feedUrl);
+        
+        if (!response.ok) {
+          throw new Error(`RSS feed fetch failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.items || data.items.length === 0) {
+          return;
+        }
+        
+        // Transform RSS items to our NewsArticle format
+        const articles = data.items.map((item: any, index: number) => {
+          // Extract image from content or enclosure
+          let imageUrl = null;
+          if (item.enclosure && item.enclosure.link) {
+            imageUrl = item.enclosure.link;
+          } else if (item.thumbnail) {
+            imageUrl = item.thumbnail;
+          } else if (item.content) {
+            const imgMatch = item.content.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/);
+            if (imgMatch && imgMatch[1]) {
+              imageUrl = imgMatch[1];
+            }
+          }
+          
+          return {
+            id: `rss-${category}-${index}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+            source: {
+              id: data.feed?.title?.toLowerCase().replace(/\s+/g, '-') || "rss",
+              name: data.feed?.title || item.author || "News Source"
+            },
+            author: item.author || null,
+            title: item.title,
+            description: item.description?.replace(/<[^>]*>/g, '').substring(0, 200) + '...' || null,
+            url: item.link,
+            urlToImage: imageUrl,
+            publishedAt: item.pubDate || new Date().toISOString(),
+            content: item.content?.replace(/<[^>]*>/g, '') || null,
+            category,
+            isTrending: false,
+            isBreaking: false,
+            isEditorsPick: false
+          };
+        });
+        
+        allArticles.push(...articles);
+      } catch (error) {
+        console.error(`Error fetching from RSS feed ${feedUrl}:`, error);
+      }
+    }));
+    
+    return allArticles;
+  } catch (error) {
+    console.error("Error fetching from RSS feeds:", error);
+    return [];
+  }
+}
+
+// Function to remove duplicate articles based on title similarity
+function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] {
+  const uniqueArticles: NewsArticle[] = [];
+  const titleMap = new Map<string, boolean>();
+  
+  for (const article of articles) {
+    // Normalize title for comparison (lowercase, remove special chars)
+    const normalizedTitle = article.title
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .trim();
+    
+    // Skip if we already have a similar title
+    let isDuplicate = false;
+    
+    for (const [existingTitle] of titleMap) {
+      // Use similarity score (basic version)
+      if (existingTitle.includes(normalizedTitle) || 
+          normalizedTitle.includes(existingTitle) ||
+          levenshteinDistance(existingTitle, normalizedTitle) < 10) {
+        isDuplicate = true;
+        break;
+      }
+    }
+    
+    if (!isDuplicate) {
+      titleMap.set(normalizedTitle, true);
+      uniqueArticles.push(article);
+    }
+  }
+  
+  return uniqueArticles;
+}
+
+// Simple Levenshtein distance implementation for string similarity
+function levenshteinDistance(str1: string, str2: string): number {
+  const track = Array(str2.length + 1).fill(null).map(() => 
+    Array(str1.length + 1).fill(null));
+  
+  for (let i = 0; i <= str1.length; i += 1) {
+    track[0][i] = i;
+  }
+  
+  for (let j = 0; j <= str2.length; j += 1) {
+    track[j][0] = j;
+  }
+  
+  for (let j = 1; j <= str2.length; j += 1) {
+    for (let i = 1; i <= str1.length; i += 1) {
+      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      track[j][i] = Math.min(
+        track[j][i - 1] + 1,
+        track[j - 1][i] + 1,
+        track[j - 1][i - 1] + indicator,
+      );
+    }
+  }
+  
+  return track[str2.length][str1.length];
+}
+
+// Function to add trending/breaking badges based on content analysis
+function addArticleBadges(articles: NewsArticle[]): NewsArticle[] {
+  const keywords = {
+    breaking: ["breaking", "just in", "alert", "exclusive", "just announced", "urgent"],
+    trending: ["viral", "trending", "popular", "hit", "sensation", "buzz", "hot", "top"]
+  };
+  
+  const editorPicks = Math.floor(articles.length * 0.1); // Top 10% are editor's picks
+  
+  return articles.map((article, index) => {
+    const lowerTitle = article.title.toLowerCase();
+    const lowerDescription = article.description?.toLowerCase() || "";
+    
+    // Check for breaking news keywords
+    const isBreaking = keywords.breaking.some(keyword => 
+      lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
+    );
+    
+    // Check for trending keywords
+    const isTrending = keywords.trending.some(keyword => 
+      lowerTitle.includes(keyword) || lowerDescription.includes(keyword)
+    );
+    
+    // Top articles by recency are editors picks
+    const isEditorsPick = index < editorPicks;
+    
+    return {
+      ...article,
+      isBreaking,
+      isTrending: isTrending || Math.random() > 0.7, // Add some randomness
+      isEditorsPick: isEditorsPick || Math.random() > 0.9 // Add some randomness
+    };
+  });
 }
 
 // Function to get fallback articles when all APIs fail
@@ -475,7 +738,7 @@ export async function refreshNews(category: string): Promise<NewsArticle[]> {
 // Function to save an article to a user's favorites
 export async function saveArticle(userId: string, article: NewsArticle): Promise<boolean> {
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('saved_articles')
       .insert([
         { 

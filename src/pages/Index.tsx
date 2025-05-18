@@ -29,16 +29,26 @@ const Index = () => {
       setIsLoading(true);
       try {
         const fetchedArticles = await fetchNewsByCategory(activeCategory);
-        setArticles(fetchedArticles);
         
-        // Set the first article as featured if it has an image
+        if (fetchedArticles.length === 0) {
+          setArticles([]);
+          setFeaturedArticle(undefined);
+          return;
+        }
+        
+        // Set the first article with image as featured if available
         const withImages = fetchedArticles.filter(a => a.urlToImage);
         if (withImages.length > 0) {
           setFeaturedArticle(withImages[0]);
           // Remove the featured article from the grid
           setArticles(fetchedArticles.filter(a => a.id !== withImages[0].id));
+        } else if (fetchedArticles.length > 0) {
+          // If no articles with images, still set a featured article
+          setFeaturedArticle(fetchedArticles[0]);
+          setArticles(fetchedArticles.slice(1));
         } else {
           setFeaturedArticle(undefined);
+          setArticles([]);
         }
       } catch (error) {
         handleNewsError(error as Error);
@@ -54,12 +64,20 @@ const Index = () => {
     setIsRefreshing(true);
     try {
       const fetchedArticles = await fetchNewsByCategory(activeCategory);
-      setArticles(fetchedArticles);
+      
+      if (fetchedArticles.length === 0) {
+        setArticles([]);
+        setFeaturedArticle(undefined);
+        return;
+      }
       
       const withImages = fetchedArticles.filter(a => a.urlToImage);
       if (withImages.length > 0) {
         setFeaturedArticle(withImages[0]);
         setArticles(fetchedArticles.filter(a => a.id !== withImages[0].id));
+      } else if (fetchedArticles.length > 0) {
+        setFeaturedArticle(fetchedArticles[0]);
+        setArticles(fetchedArticles.slice(1));
       }
       
       toast({
@@ -114,7 +132,11 @@ const Index = () => {
         
         <div className="mt-6">
           <FeaturedNews article={featuredArticle} />
-          <NewsGrid articles={articles} isLoading={isLoading} />
+          <NewsGrid 
+            articles={articles} 
+            isLoading={isLoading} 
+            onRefresh={handleRefresh}
+          />
         </div>
       </main>
       

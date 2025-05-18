@@ -72,6 +72,30 @@ const SavedArticles = () => {
     loadSavedArticles();
   }, [userId, toast]);
 
+  const handleRefresh = async () => {
+    if (!userId) return;
+    
+    setIsLoading(true);
+    try {
+      const savedArticles = await getSavedArticles(userId);
+      setArticles(savedArticles);
+      toast({
+        title: "Saved articles refreshed",
+        description: "Your collection has been updated",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error("Error refreshing saved articles:", error);
+      toast({
+        title: "Failed to refresh articles",
+        description: "Could not update your saved articles. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -96,6 +120,7 @@ const SavedArticles = () => {
           <NewsGrid 
             articles={articles} 
             isLoading={isLoading} 
+            onRefresh={handleRefresh}
             emptyMessage="You haven't saved any articles yet. Browse categories and save articles you like."
           />
         </div>

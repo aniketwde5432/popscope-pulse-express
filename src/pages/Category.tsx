@@ -40,16 +40,25 @@ const Category = () => {
       setIsLoading(true);
       try {
         const fetchedArticles = await fetchNewsByCategory(categoryId);
-        setArticles(fetchedArticles);
         
-        // Set the first article as featured if it has an image
+        if (fetchedArticles.length === 0) {
+          setArticles([]);
+          setFeaturedArticle(undefined);
+          return;
+        }
+        
+        // Set the first article with image as featured if available
         const withImages = fetchedArticles.filter(a => a.urlToImage);
         if (withImages.length > 0) {
           setFeaturedArticle(withImages[0]);
           // Remove the featured article from the grid
           setArticles(fetchedArticles.filter(a => a.id !== withImages[0].id));
+        } else if (fetchedArticles.length > 0) {
+          setFeaturedArticle(fetchedArticles[0]);
+          setArticles(fetchedArticles.slice(1));
         } else {
           setFeaturedArticle(undefined);
+          setArticles([]);
         }
       } catch (error) {
         handleNewsError(error as Error);
@@ -67,12 +76,20 @@ const Category = () => {
     setIsRefreshing(true);
     try {
       const fetchedArticles = await fetchNewsByCategory(categoryId);
-      setArticles(fetchedArticles);
+      
+      if (fetchedArticles.length === 0) {
+        setArticles([]);
+        setFeaturedArticle(undefined);
+        return;
+      }
       
       const withImages = fetchedArticles.filter(a => a.urlToImage);
       if (withImages.length > 0) {
         setFeaturedArticle(withImages[0]);
         setArticles(fetchedArticles.filter(a => a.id !== withImages[0].id));
+      } else if (fetchedArticles.length > 0) {
+        setFeaturedArticle(fetchedArticles[0]);
+        setArticles(fetchedArticles.slice(1));
       }
       
       toast({
@@ -122,7 +139,12 @@ const Category = () => {
         
         <div className="mt-6">
           <FeaturedNews article={featuredArticle} />
-          <NewsGrid articles={articles} isLoading={isLoading} />
+          <NewsGrid 
+            articles={articles} 
+            isLoading={isLoading} 
+            onRefresh={handleRefresh}
+            emptyMessage={`No recent ${categoryName.toLowerCase()} news found. Try refreshing or check back later.`}
+          />
         </div>
       </main>
       

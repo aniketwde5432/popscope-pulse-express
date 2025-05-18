@@ -74,6 +74,11 @@ export function CategoryBanners() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+
+  const handleImageError = (categoryId: string) => {
+    setImageErrors(prev => ({...prev, [categoryId]: true}));
+  };
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
@@ -120,24 +125,27 @@ export function CategoryBanners() {
 
       <div 
         ref={scrollContainerRef}
-        className="flex w-full gap-4 overflow-x-auto pb-4 scrollbar-none"
+        className="flex w-full gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {categories.map((category) => (
           <div
             key={category.id}
             onClick={() => navigate(`/category/${category.id}`)}
-            className="relative min-w-[280px] max-w-[340px] cursor-pointer overflow-hidden rounded-lg shadow-md transition-all duration-300 hover:shadow-xl hover:scale-[1.01]"
+            className="relative min-w-[280px] max-w-[340px] cursor-pointer overflow-hidden rounded-lg shadow-md transition-all duration-300 hover:shadow-xl hover:scale-[1.01] snap-start"
           >
             <div className="aspect-[16/9] overflow-hidden">
               <img
                 src={category.image}
                 alt={category.name}
                 className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                onError={() => handleImageError(category.id)}
+                loading="lazy"
               />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-deep-charcoal via-deep-charcoal/50 to-transparent" />
             <div className="absolute bottom-0 left-0 w-full p-4 text-white">
-              <h3 className="text-xl font-bold font-playfair mb-1">{category.name}</h3>
+              <h3 className="text-xl font-bold font-playfair mb-1 text-shadow">{category.name}</h3>
               <p className="text-sm text-white/80 line-clamp-2">{category.description}</p>
             </div>
           </div>
