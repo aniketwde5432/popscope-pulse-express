@@ -2,25 +2,16 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Heart, BookmarkPlus, Share } from "lucide-react";
+import { Heart, Share } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import type { NewsArticle } from "@/services/newsService";
 import { cn } from "@/lib/utils";
+import { SaveButton } from "@/components/SaveButton";
 
 export function NewsCard({ article }: { article: NewsArticle }) {
   const { toast } = useToast();
-  const [isBookmarked, setIsBookmarked] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   
-  const handleBookmark = () => {
-    setIsBookmarked(!isBookmarked);
-    toast({
-      title: isBookmarked ? "Removed from bookmarks" : "Added to bookmarks",
-      description: isBookmarked ? "Article removed from your saved items" : "Article added to your saved items",
-      duration: 3000,
-    });
-  };
-
   const handleLike = () => {
     setIsLiked(!isLiked);
     toast({
@@ -58,7 +49,7 @@ export function NewsCard({ article }: { article: NewsArticle }) {
   };
 
   return (
-    <Card className="news-card animate-scale-in">
+    <Card className="news-card animate-scale-in hover:shadow-lg transition-all duration-300">
       <a href={article.url} target="_blank" rel="noopener noreferrer">
         <div className="relative aspect-video overflow-hidden">
           {article.urlToImage ? (
@@ -111,18 +102,7 @@ export function NewsCard({ article }: { article: NewsArticle }) {
           <span className="sr-only">Like</span>
         </Button>
         
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleBookmark}
-          className={cn(
-            "hover:text-secondary",
-            isBookmarked && "text-secondary"
-          )}
-        >
-          <BookmarkPlus size={18} className={isBookmarked ? "fill-current" : ""} />
-          <span className="sr-only">Bookmark</span>
-        </Button>
+        <SaveButton article={article} />
         
         <Button
           variant="ghost"

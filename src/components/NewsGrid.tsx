@@ -6,9 +6,10 @@ import type { NewsArticle } from "@/services/newsService";
 interface NewsGridProps {
   articles: NewsArticle[];
   isLoading: boolean;
+  emptyMessage?: string;
 }
 
-export function NewsGrid({ articles, isLoading }: NewsGridProps) {
+export function NewsGrid({ articles, isLoading, emptyMessage }: NewsGridProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -40,7 +41,7 @@ export function NewsGrid({ articles, isLoading }: NewsGridProps) {
       <div className="text-center py-10">
         <h3 className="text-xl font-playfair mb-2">No articles found</h3>
         <p className="text-muted-foreground">
-          We couldn't find any articles in this category. Please check back later.
+          {emptyMessage || "We couldn't find any articles in this category. Please check back later."}
         </p>
       </div>
     );

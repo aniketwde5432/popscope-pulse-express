@@ -1,34 +1,45 @@
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
-import { CategoryNav } from "@/components/CategoryNav";
 import { NewsGrid } from "@/components/NewsGrid";
-import { FeaturedNews } from "@/components/FeaturedNews";
-import { CategoryBanners } from "@/components/CategoryBanner";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
-import {
-  fetchNewsByCategory,
-  handleNewsError,
-  type NewsArticle,
-} from "@/services/newsService";
+import { RefreshCw, ArrowLeft } from "lucide-react";
+import { fetchNewsByCategory, handleNewsError, type NewsArticle } from "@/services/newsService";
 import { useToast } from "@/components/ui/use-toast";
+import { FeaturedNews } from "@/components/FeaturedNews";
 
-const Index = () => {
-  const [activeCategory, setActiveCategory] = useState("trending");
+const categories: Record<string, string> = {
+  anime: "Anime",
+  manga: "Manga",
+  bollywood: "Bollywood",
+  hollywood: "Hollywood",
+  tvshows: "TV Shows",
+  comics: "Comics",
+  kpop: "K-Pop",
+  celebrity: "Celebrity",
+  upcoming: "Upcoming",
+  trending: "Trending"
+};
+
+const Category = () => {
+  const { categoryId } = useParams<{ categoryId: string }>();
+  const navigate = useNavigate();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [featuredArticle, setFeaturedArticle] = useState<NewsArticle | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate();
+
+  const categoryName = categoryId ? categories[categoryId] || categoryId.charAt(0).toUpperCase() + categoryId.slice(1) : "Category";
 
   useEffect(() => {
+    if (!categoryId) return;
+
     const loadNews = async () => {
       setIsLoading(true);
       try {
-        const fetchedArticles = await fetchNewsByCategory(activeCategory);
+        const fetchedArticles = await fetchNewsByCategory(categoryId);
         setArticles(fetchedArticles);
         
         // Set the first article as featured if it has an image
@@ -48,12 +59,14 @@ const Index = () => {
     };
 
     loadNews();
-  }, [activeCategory]);
+  }, [categoryId]);
 
   const handleRefresh = async () => {
+    if (!categoryId) return;
+    
     setIsRefreshing(true);
     try {
-      const fetchedArticles = await fetchNewsByCategory(activeCategory);
+      const fetchedArticles = await fetchNewsByCategory(categoryId);
       setArticles(fetchedArticles);
       
       const withImages = fetchedArticles.filter(a => a.urlToImage);
@@ -79,38 +92,33 @@ const Index = () => {
       <Header />
       
       <main className="flex-1 container pt-6 pb-12">
-        <section className="mb-10">
-          <h2 className="text-2xl font-playfair font-bold mb-6">Explore Categories</h2>
-          <CategoryBanners />
-        </section>
-        
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-playfair font-bold">
-            {activeCategory === "trending" ? "Top Stories" : activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)}
-          </h2>
           <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing || isLoading}
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={() => navigate("/")}
               className="rounded-full"
             >
-              <RefreshCw size={16} className={isRefreshing ? "animate-spin mr-2" : "mr-2"} />
-              Refresh
+              <ArrowLeft size={18} />
+              <span className="sr-only">Back</span>
             </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => navigate(`/category/${activeCategory}`)}
-              className="rounded-full"
-            >
-              View All
-            </Button>
+            <h2 className="text-2xl sm:text-3xl font-playfair font-bold">
+              {categoryName}
+            </h2>
           </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing || isLoading}
+            className="rounded-full"
+          >
+            <RefreshCw size={16} className={isRefreshing ? "animate-spin mr-2" : "mr-2"} />
+            Refresh
+          </Button>
         </div>
-        
-        <CategoryNav activeCategory={activeCategory} setActiveCategory={setActiveCategory} />
         
         <div className="mt-6">
           <FeaturedNews article={featuredArticle} />
@@ -137,4 +145,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default Category;
