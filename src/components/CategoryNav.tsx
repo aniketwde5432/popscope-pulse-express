@@ -21,12 +21,18 @@ const categories: Category[] = [
   { id: "upcoming", name: "Upcoming" },
 ];
 
-type CategoryNavProps = {
-  activeCategory: string;
-  setActiveCategory: (category: string) => void;
+export type CategoryNavProps = {
+  activeCategory?: string;
+  setActiveCategory?: (category: string) => void;
 };
 
-export function CategoryNav({ activeCategory, setActiveCategory }: CategoryNavProps) {
+export function CategoryNav({ activeCategory = "trending", setActiveCategory }: CategoryNavProps) {
+  const handleCategoryClick = (categoryId: string) => {
+    if (setActiveCategory) {
+      setActiveCategory(categoryId);
+    }
+  };
+
   return (
     <nav className="w-full overflow-x-auto pb-2 hide-scrollbar">
       <div className="flex gap-2 min-w-max">
@@ -35,7 +41,7 @@ export function CategoryNav({ activeCategory, setActiveCategory }: CategoryNavPr
             key={category.id}
             variant={activeCategory === category.id ? "default" : "outline"}
             size="sm"
-            onClick={() => setActiveCategory(category.id)}
+            onClick={() => handleCategoryClick(category.id)}
             className={cn(
               "rounded-full text-sm transition-all duration-300",
               activeCategory === category.id ? "bg-primary" : "hover:bg-muted"

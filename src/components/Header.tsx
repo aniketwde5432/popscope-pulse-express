@@ -11,6 +11,7 @@ import { PaperButton } from "@/components/PaperButton";
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [headerActiveCategory, setHeaderActiveCategory] = useState("trending");
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -67,7 +68,10 @@ export function Header() {
               </li>
               
               <li className="flex overflow-auto pb-2 md:pb-0 md:overflow-visible">
-                <CategoryNav />
+                <CategoryNav 
+                  activeCategory={headerActiveCategory} 
+                  setActiveCategory={setHeaderActiveCategory} 
+                />
               </li>
             </ul>
           </div>
