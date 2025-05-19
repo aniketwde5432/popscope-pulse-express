@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Heart, Share, ExternalLink } from "lucide-react";
+import { Heart, Share, ExternalLink, Newspaper } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import type { NewsArticle } from "@/services/newsService";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ export function NewsCard({ article }: { article: NewsArticle }) {
   const { toast } = useToast();
   const [isLiked, setIsLiked] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [isInPaper, setIsInPaper] = useState(false);
   
   const handleLike = () => {
     setIsLiked(!isLiked);
@@ -42,6 +43,40 @@ export function NewsCard({ article }: { article: NewsArticle }) {
   const handleImageError = () => {
     setImageError(true);
   };
+
+  const handleAddToPaper = () => {
+    const paperArticles = JSON.parse(localStorage.getItem('paperArticles') || '[]');
+    
+    // Check if article is already in the paper
+    if (paperArticles.some((a: NewsArticle) => a.id === article.id)) {
+      // Remove it from paper
+      const filteredArticles = paperArticles.filter((a: NewsArticle) => a.id !== article.id);
+      localStorage.setItem('paperArticles', JSON.stringify(filteredArticles));
+      setIsInPaper(false);
+      toast({
+        title: "Removed from paper",
+        description: "Article removed from your newspaper",
+        duration: 3000,
+      });
+    } else {
+      // Add to paper
+      paperArticles.push(article);
+      localStorage.setItem('paperArticles', JSON.stringify(paperArticles));
+      setIsInPaper(true);
+      toast({
+        title: "Added to paper",
+        description: "Article added to your newspaper",
+        duration: 3000,
+      });
+    }
+  };
+
+  // Check if article is in paper on mount
+  useState(() => {
+    const paperArticles = JSON.parse(localStorage.getItem('paperArticles') || '[]');
+    const isAlreadyInPaper = paperArticles.some((a: NewsArticle) => a.id === article.id);
+    setIsInPaper(isAlreadyInPaper);
+  });
 
   const formatPublishDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -203,6 +238,20 @@ export function NewsCard({ article }: { article: NewsArticle }) {
         >
           <Heart size={18} className={isLiked ? "fill-current" : ""} />
           <span className="sr-only">Like</span>
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleAddToPaper}
+          className={cn(
+            "hover:text-accent-foreground",
+            isInPaper && "text-secondary fill-current"
+          )}
+          title={isInPaper ? "Remove from paper" : "Add to paper"}
+        >
+          <Newspaper size={18} className={isInPaper ? "fill-current" : ""} />
+          <span className="sr-only">{isInPaper ? "Remove from paper" : "Add to paper"}</span>
         </Button>
         
         <SaveButton article={article} />

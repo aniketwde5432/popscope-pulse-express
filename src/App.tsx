@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Category from "./pages/Category";
 import Auth from "./pages/Auth";
 import SavedArticles from "./pages/SavedArticles";
+import MyPaper from "./pages/MyPaper";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/category/:categoryId" element={<Category />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/saved" element={<SavedArticles />} />
+          <Route path="/paper" element={<MyPaper />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

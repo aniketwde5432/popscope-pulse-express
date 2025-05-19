@@ -1,45 +1,29 @@
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Search, Bookmark, User, LogOut, Menu } from "lucide-react";
-import { ThemeToggle } from "./ThemeToggle";
-import { Input } from "@/components/ui/input";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Search, Menu, X, User, BookmarkCheck } from "lucide-react";
+import { CategoryNav } from "@/components/CategoryNav"; 
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
-import { 
-  Sheet, 
-  SheetTrigger, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
-  SheetFooter,
-  SheetDescription,
-  SheetClose
-} from "@/components/ui/sheet";
+import { PaperButton } from "@/components/PaperButton";
 
 export function Header() {
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   useEffect(() => {
-    // Check if user is already logged in
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setIsAuthenticated(!!session);
-      setUser(session?.user || null);
     };
     
     checkAuth();
     
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthenticated(!!session);
-      setUser(session?.user || null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      setIsAuthenticated(event !== "SIGNED_OUT");
     });
     
     return () => {
@@ -47,179 +31,87 @@ export function Header() {
     };
   }, []);
 
-  const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast({
-        title: "Error signing out",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Signed out successfully",
-        description: "You have been logged out of your account",
-      });
-      navigate('/');
-    }
-  };
+  useEffect(() => {
+    // Close the mobile menu when route changes
+    setIsMenuOpen(false);
+  }, [location.pathname]);
 
   return (
-    <header className="sticky top-0 z-10 bg-background border-b border-border backdrop-blur-md bg-opacity-90">
-      <div className="container py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="flex items-center">
-            <h1 className="text-2xl sm:text-3xl font-playfair font-bold text-primary">
+    <header className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-16 items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            className="md:hidden"
+            size="icon"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            <span className="sr-only">Toggle menu</span>
+          </Button>
+          
+          <Link to="/" className="flex items-center gap-1">
+            <span className="text-xl font-playfair font-bold text-primary">
               PopScope <span className="text-foreground">Express</span>
-            </h1>
+            </span>
           </Link>
         </div>
         
+        <nav className={`absolute left-0 right-0 top-16 p-4 border-b md:static md:p-0 md:border-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:bg-transparent ${isMenuOpen ? "block" : "hidden md:block"}`}>
+          <div className="container md:p-0">
+            <ul className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+              <li className="md:hidden">
+                <Link to="/" className="font-medium hover:text-primary transition-colors">
+                  Home
+                </Link>
+              </li>
+              
+              <li className="flex overflow-auto pb-2 md:pb-0 md:overflow-visible">
+                <CategoryNav />
+              </li>
+            </ul>
+          </div>
+        </nav>
+        
         <div className="flex items-center gap-2">
-          {isSearchOpen ? (
-            <div className="animate-fade-in flex items-center">
-              <Input
-                type="text"
-                placeholder="Search news..."
-                className="max-w-[200px] focus-visible:ring-primary"
-                autoFocus
-                onBlur={() => setIsSearchOpen(false)}
-              />
-            </div>
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsSearchOpen(true)}
-              className="rounded-full"
-              aria-label="Search"
-            >
-              <Search className="h-5 w-5" />
-              <span className="sr-only">Search</span>
-            </Button>
-          )}
+          <PaperButton />
+          
+          <div className="hidden xs:flex">
+            {isAuthenticated ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full gap-2"
+                asChild
+              >
+                <Link to="/saved">
+                  <BookmarkCheck size={16} />
+                  <span>Saved</span>
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full gap-2"
+                onClick={() => navigate("/auth")}
+              >
+                <User size={16} />
+                <span>Sign In</span>
+              </Button>
+            )}
+          </div>
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-foreground"
+          >
+            <Search size={18} />
+            <span className="sr-only">Search</span>
+          </Button>
           
           <ThemeToggle />
-          
-          {location.pathname !== '/saved' && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="rounded-full hidden md:flex" 
-              onClick={() => navigate('/saved')}
-            >
-              <Bookmark className="h-5 w-5" />
-              <span className="sr-only">Saved Articles</span>
-            </Button>
-          )}
-          
-          {isAuthenticated ? (
-            <div className="hidden md:flex gap-2">
-              <Button 
-                variant="outline"
-                onClick={() => navigate('/profile')}
-                className="rounded-full"
-              >
-                <User className="h-4 w-4 mr-2" />
-                {user?.email?.split('@')[0] || 'Profile'}
-              </Button>
-              
-              <Button
-                variant="ghost"
-                onClick={handleSignOut}
-                className="rounded-full"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
-          ) : (
-            <div className="hidden md:flex gap-2">
-              <Button variant="outline" size="sm" className="rounded-full" onClick={() => navigate('/auth')}>
-                Sign In
-              </Button>
-              <Button size="sm" className="rounded-full" onClick={() => navigate('/auth')}>
-                Create Account
-              </Button>
-            </div>
-          )}
-          
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full md:hidden">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetHeader>
-                <SheetTitle className="font-playfair text-primary">
-                  PopScope <span className="text-foreground">Express</span>
-                </SheetTitle>
-                <SheetDescription>
-                  Your real-time pop culture news platform
-                </SheetDescription>
-              </SheetHeader>
-              <div className="flex flex-col gap-3 py-6">
-                <SheetClose asChild>
-                  <Button 
-                    variant="ghost" 
-                    onClick={() => navigate('/')}
-                    className="justify-start"
-                  >
-                    Home
-                  </Button>
-                </SheetClose>
-                
-                <SheetClose asChild>
-                  <Button 
-                    variant="ghost"
-                    onClick={() => navigate('/saved')}
-                    className="justify-start"
-                  >
-                    <Bookmark className="h-4 w-4 mr-2" /> Saved Articles
-                  </Button>
-                </SheetClose>
-                
-                {isAuthenticated ? (
-                  <>
-                    <SheetClose asChild>
-                      <Button 
-                        variant="ghost"
-                        onClick={() => navigate('/profile')}
-                        className="justify-start"
-                      >
-                        <User className="h-4 w-4 mr-2" /> Profile
-                      </Button>
-                    </SheetClose>
-                    
-                    <Button 
-                      variant="ghost"
-                      onClick={() => {
-                        handleSignOut();
-                      }}
-                      className="justify-start text-destructive hover:text-destructive"
-                    >
-                      <LogOut className="h-4 w-4 mr-2" /> Sign Out
-                    </Button>
-                  </>
-                ) : (
-                  <SheetClose asChild>
-                    <Button 
-                      variant="default"
-                      onClick={() => navigate('/auth')}
-                      className="justify-start"
-                    >
-                      Sign In / Create Account
-                    </Button>
-                  </SheetClose>
-                )}
-              </div>
-              <SheetFooter className="mt-auto">
-                <ThemeToggle />
-              </SheetFooter>
-            </SheetContent>
-          </Sheet>
         </div>
       </div>
     </header>

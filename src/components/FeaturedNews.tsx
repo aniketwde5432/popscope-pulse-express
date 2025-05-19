@@ -2,11 +2,22 @@
 import { Button } from "@/components/ui/button";
 import type { NewsArticle } from "@/services/newsService";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ExternalLink, Newspaper } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 export function FeaturedNews({ article }: { article?: NewsArticle }) {
   const [imageError, setImageError] = useState(false);
+  const [isInPaper, setIsInPaper] = useState(false);
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    if (article) {
+      const paperArticles = JSON.parse(localStorage.getItem('paperArticles') || '[]');
+      const isAlreadyInPaper = paperArticles.some((a: NewsArticle) => a.id === article.id);
+      setIsInPaper(isAlreadyInPaper);
+    }
+  }, [article]);
   
   if (!article) {
     return null;
@@ -14,6 +25,35 @@ export function FeaturedNews({ article }: { article?: NewsArticle }) {
 
   const handleImageError = () => {
     setImageError(true);
+  };
+
+  const handleAddToPaper = () => {
+    if (!article) return;
+    
+    const paperArticles = JSON.parse(localStorage.getItem('paperArticles') || '[]');
+    
+    // Check if article is already in the paper
+    if (paperArticles.some((a: NewsArticle) => a.id === article.id)) {
+      // Remove it from paper
+      const filteredArticles = paperArticles.filter((a: NewsArticle) => a.id !== article.id);
+      localStorage.setItem('paperArticles', JSON.stringify(filteredArticles));
+      setIsInPaper(false);
+      toast({
+        title: "Removed from paper",
+        description: "Article removed from your newspaper",
+        duration: 3000,
+      });
+    } else {
+      // Add to paper
+      paperArticles.push(article);
+      localStorage.setItem('paperArticles', JSON.stringify(paperArticles));
+      setIsInPaper(true);
+      toast({
+        title: "Added to paper",
+        description: "Article added to your newspaper",
+        duration: 3000,
+      });
+    }
   };
 
   const formatPublishDate = (dateString: string) => {
@@ -148,12 +188,26 @@ export function FeaturedNews({ article }: { article?: NewsArticle }) {
             <div className="text-sm opacity-75">
               <span className="font-semibold">{article.source.name}</span> • {formatPublishDate(article.publishedAt)}
             </div>
-            <Button asChild variant="secondary" className="rounded-full gap-2 hover:gap-3 transition-all">
-              <a href={article.url} target="_blank" rel="noopener noreferrer">
-                Read Full Story
-                <ExternalLink size={16} />
-              </a>
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="secondary" 
+                size="sm"
+                className={cn(
+                  "rounded-full gap-1 hover:gap-2 transition-all",
+                  isInPaper && "bg-primary text-primary-foreground hover:bg-primary/90"
+                )}
+                onClick={handleAddToPaper}
+              >
+                <Newspaper size={16} />
+                {isInPaper ? "In Your Paper" : "Add to Paper"}
+              </Button>
+              <Button asChild variant="secondary" className="rounded-full gap-2 hover:gap-3 transition-all">
+                <a href={article.url} target="_blank" rel="noopener noreferrer">
+                  Read Full Story
+                  <ExternalLink size={16} />
+                </a>
+              </Button>
+            </div>
           </div>
         </div>
       </div>
