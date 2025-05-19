@@ -36,6 +36,13 @@
     --ring: 353 83% 57%;
 
     --radius: 0.5rem;
+    
+    /* Vintage newspaper colors */
+    --vintage-beige: 33 53% 91%;
+    --deep-charcoal: 240 10% 13%;
+    --crimson: 353 83% 57%;
+    --dusty-teal: 195 75% 49%;
+    --mustard: 48 98% 60%;
   }
 
   .dark {
@@ -66,6 +73,10 @@
     --border: 240 6% 25%;
     --input: 240 6% 25%;
     --ring: 353 83% 57%;
+    
+    /* Vintage newspaper colors - dark mode */
+    --vintage-beige: 33 30% 20%;
+    --deep-charcoal: 0 0% 95%;
   }
 }
 
@@ -194,5 +205,23 @@
     0% { opacity: 0.4; }
     50% { opacity: 1; }
     100% { opacity: 0.4; }
+  }
+  
+  /* Vintage newspaper styles */
+  .newspaper-article {
+    @apply font-serif;
+  }
+  
+  .newspaper-article h3 {
+    @apply font-playfair;
+  }
+  
+  .bg-vintage-beige {
+    @apply bg-opacity-95;
+    background-color: hsl(var(--vintage-beige));
+  }
+  
+  .text-deep-charcoal {
+    color: hsl(var(--deep-charcoal));
   }
 }

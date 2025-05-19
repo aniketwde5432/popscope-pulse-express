@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Heart, Share, ExternalLink, Newspaper } from "lucide-react";
@@ -13,6 +13,28 @@ export function NewsCard({ article }: { article: NewsArticle }) {
   const [isLiked, setIsLiked] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isInPaper, setIsInPaper] = useState(false);
+  
+  // Check if article is already in paper when component mounts
+  useEffect(() => {
+    const checkIfInPaper = () => {
+      try {
+        const paperArticles = JSON.parse(localStorage.getItem('paperArticles') || '[]');
+        const isAlreadyInPaper = paperArticles.some((a: NewsArticle) => a.id === article.id);
+        setIsInPaper(isAlreadyInPaper);
+      } catch (error) {
+        console.error('Error checking if article is in paper:', error);
+      }
+    };
+    
+    checkIfInPaper();
+    
+    // Listen for paper updates
+    window.addEventListener('paperUpdated', checkIfInPaper);
+    
+    return () => {
+      window.removeEventListener('paperUpdated', checkIfInPaper);
+    };
+  }, [article.id]);
   
   const handleLike = () => {
     setIsLiked(!isLiked);
@@ -69,14 +91,10 @@ export function NewsCard({ article }: { article: NewsArticle }) {
         duration: 3000,
       });
     }
+    
+    // Dispatch custom event to notify that paper has been updated
+    window.dispatchEvent(new Event('paperUpdated'));
   };
-
-  // Check if article is in paper on mount
-  useState(() => {
-    const paperArticles = JSON.parse(localStorage.getItem('paperArticles') || '[]');
-    const isAlreadyInPaper = paperArticles.some((a: NewsArticle) => a.id === article.id);
-    setIsInPaper(isAlreadyInPaper);
-  });
 
   const formatPublishDate = (dateString: string) => {
     const date = new Date(dateString);

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Trash2, Newspaper } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { getSavedArticles, type NewsArticle } from "@/services/newsService";
+import { type NewsArticle } from "@/services/newsService";
 import { ShareNewspaper } from "@/components/ShareNewspaper";
 
 const PAPER_TITLE_OPTIONS = [
@@ -63,20 +63,19 @@ const MyPaper = () => {
     };
   }, [navigate, toast]);
 
-  // Load saved articles when user is authenticated
+  // Load articles from localStorage
   useEffect(() => {
-    if (!userId) return;
-    
-    const loadArticles = async () => {
+    const loadArticles = () => {
       setIsLoading(true);
       try {
-        const articles = await getSavedArticles(userId);
-        setSelectedArticles(articles);
+        // Get articles from localStorage
+        const paperArticles = JSON.parse(localStorage.getItem('paperArticles') || '[]');
+        setSelectedArticles(paperArticles);
       } catch (error) {
-        console.error("Error loading saved articles:", error);
+        console.error("Error loading paper articles:", error);
         toast({
           title: "Failed to load articles",
-          description: "Could not retrieve your saved articles",
+          description: "Could not retrieve your selected articles",
           variant: "destructive",
         });
       } finally {
@@ -84,17 +83,46 @@ const MyPaper = () => {
       }
     };
     
+    // Initial load
     loadArticles();
-  }, [userId, toast]);
+    
+    // Listen for paper updates
+    const handlePaperUpdate = () => {
+      loadArticles();
+    };
+    
+    window.addEventListener('paperUpdated', handlePaperUpdate);
+    window.addEventListener('storage', handlePaperUpdate);
+    
+    return () => {
+      window.removeEventListener('paperUpdated', handlePaperUpdate);
+      window.removeEventListener('storage', handlePaperUpdate);
+    };
+  }, [toast]);
 
   // Remove an article from selection
   const handleRemoveArticle = (articleId: string) => {
-    setSelectedArticles(selectedArticles.filter(article => article.id !== articleId));
+    const updatedArticles = selectedArticles.filter(article => article.id !== articleId);
+    setSelectedArticles(updatedArticles);
+    localStorage.setItem('paperArticles', JSON.stringify(updatedArticles));
+    
+    // Dispatch event to notify other components
+    window.dispatchEvent(new Event('paperUpdated'));
+    
+    toast({
+      title: "Article removed",
+      description: "Article removed from your paper",
+    });
   };
 
   // Clear all selected articles
   const handleClearAll = () => {
     setSelectedArticles([]);
+    localStorage.setItem('paperArticles', JSON.stringify([]));
+    
+    // Dispatch event to notify other components
+    window.dispatchEvent(new Event('paperUpdated'));
+    
     toast({
       title: "Selection cleared",
       description: "All articles have been removed from your paper",
