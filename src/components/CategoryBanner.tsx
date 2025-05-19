@@ -29,7 +29,7 @@ const categories: Category[] = [
   {
     id: "bollywood",
     name: "Bollywood",
-    image: "https://images.unsplash.com/photo-1626516010767-981de061de7a?q=80&w=1170&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1626070789653-afb6c41296c7?q=80&w=1074&auto=format&fit=crop",
     description: "The latest from the Indian film industry"
   },
   {
@@ -115,7 +115,7 @@ export function CategoryBanners() {
     const fallbacks: Record<string, string> = {
       anime: "https://images.unsplash.com/photo-1601850494422-3cf14624b0b3?q=80&w=1170&auto=format&fit=crop",
       manga: "https://images.unsplash.com/photo-1614583225154-5fcddf81d8ce?q=80&w=1170&auto=format&fit=crop",
-      bollywood: "https://images.unsplash.com/photo-1662836248690-b264792ef10f?q=80&w=1170&auto=format&fit=crop",
+      bollywood: "https://images.unsplash.com/photo-1594387303756-8c85d29a982f?q=80&w=1170&auto=format&fit=crop",
       hollywood: "https://images.unsplash.com/photo-1524712245354-2c4e5e7121c0?q=80&w=1032&auto=format&fit=crop",
       tvshows: "https://images.unsplash.com/photo-1594908900066-3f47337549d8?q=80&w=1170&auto=format&fit=crop",
       comics: "https://images.unsplash.com/photo-1612036782180-6f0822045d55?q=80&w=1170&auto=format&fit=crop",
@@ -147,7 +147,7 @@ export function CategoryBanners() {
       
       <div 
         ref={scrollContainerRef}
-        className="flex w-full gap-4 overflow-x-auto pb-4 fade-edges custom-scrollbar snap-x"
+        className="flex w-full gap-4 overflow-x-auto pb-4 fade-edges hide-scrollbar snap-x"
         style={{ scrollBehavior: 'smooth' }}
       >
         {categories.map((category) => (

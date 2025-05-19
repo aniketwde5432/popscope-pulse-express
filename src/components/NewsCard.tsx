@@ -85,8 +85,8 @@ export function NewsCard({ article }: { article: NewsArticle }) {
         "https://images.unsplash.com/photo-1611458938148-ef8e66a82cc6?q=80&w=1170&auto=format&fit=crop"
       ],
       bollywood: [
-        "https://images.unsplash.com/photo-1626516010767-981de061de7a?q=80&w=1170&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1662836248690-b264792ef10f?q=80&w=1170&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1626070789653-afb6c41296c7?q=80&w=1074&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1594387303756-8c85d29a982f?q=80&w=1170&auto=format&fit=crop",
         "https://images.unsplash.com/photo-1598121210875-722642cbbf50?q=80&w=987&auto=format&fit=crop"
       ],
       hollywood: [
@@ -138,9 +138,16 @@ export function NewsCard({ article }: { article: NewsArticle }) {
     return "https://images.unsplash.com/photo-1497005367839-6e852de72767?q=80&w=1167&auto=format&fit=crop";
   };
 
-  // Check if the URL might be the Netflix generic image
+  // Check if the URL might be a generic image
   const isGenericNetflixImage = (url: string) => {
-    return url && url.includes('netflix') && url.includes('default');
+    return url && (
+      url.includes('netflix') && url.includes('default') ||
+      url.includes('placeholder') ||
+      url.includes('image-not-found') ||
+      url.includes('no-image') ||
+      url.includes('default-image') ||
+      url.length < 15
+    );
   };
 
   // Determine if we should use the article image or a fallback

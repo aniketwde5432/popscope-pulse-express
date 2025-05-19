@@ -56,8 +56,8 @@ export function FeaturedNews({ article }: { article?: NewsArticle }) {
         "https://images.unsplash.com/photo-1614583225154-5fcddf81d8ce?q=80&w=1170&auto=format&fit=crop"
       ],
       bollywood: [
-        "https://images.unsplash.com/photo-1626516010767-981de061de7a?q=80&w=1170&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1662836248690-b264792ef10f?q=80&w=1170&auto=format&fit=crop"
+        "https://images.unsplash.com/photo-1626070789653-afb6c41296c7?q=80&w=1074&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1594387303756-8c85d29a982f?q=80&w=1170&auto=format&fit=crop"
       ],
       hollywood: [
         "https://images.unsplash.com/photo-1524712245354-2c4e5e7121c0?q=80&w=1032&auto=format&fit=crop",
@@ -103,7 +103,13 @@ export function FeaturedNews({ article }: { article?: NewsArticle }) {
 
   // Check if the URL might be the Netflix generic image
   const isGenericNetflixImage = (url: string) => {
-    return url && url.includes('netflix') && url.includes('default');
+    return url && (
+      url.includes('netflix') && url.includes('default') ||
+      url.includes('placeholder') ||
+      url.includes('image-not-found') ||
+      url.includes('no-image') ||
+      url.includes('default-image')
+    );
   };
 
   // Determine if we should use the article image or a fallback

@@ -1,4 +1,3 @@
-
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,6 +40,7 @@ export async function fetchNewsByCategory(
       fetchFromBingNewsAPI(category),
       fetchFromGNewsAPI(category),
       fetchFromRSSFeeds(category),
+      fetchFromAdditionalSources(category), // New function to add more sources
     ];
     
     const results = await Promise.allSettled(sources);
@@ -65,14 +65,16 @@ export async function fetchNewsByCategory(
       }
     });
     
-    // If no articles found, use fallback data
-    if (recentArticles.length === 0) {
-      console.log("No articles found from APIs, using fallback data");
-      return getFallbackArticles(category);
+    // If few articles found, add more fallback data
+    let finalArticles = recentArticles;
+    if (recentArticles.length < 6) {
+      console.log(`Only ${recentArticles.length} articles found for ${category}, adding fallback data`);
+      const fallbackArticles = getFallbackArticles(category);
+      finalArticles = [...recentArticles, ...fallbackArticles];
     }
     
     // Remove duplicates based on title similarity
-    const uniqueArticles = removeDuplicateArticles(recentArticles);
+    const uniqueArticles = removeDuplicateArticles(finalArticles);
     
     // Add trending/breaking badges based on recency and patterns in title
     const processedArticles = addArticleBadges(uniqueArticles);
@@ -285,51 +287,219 @@ async function fetchFromGNewsAPI(category: string): Promise<NewsArticle[]> {
   }
 }
 
-// RSS Feed implementation
+// Fetch from additional news sources
+async function fetchFromAdditionalSources(category: string): Promise<NewsArticle[]> {
+  // Focus on specific categories that need more content
+  if (category === "tvshows") {
+    try {
+      // Additional TV Shows sources
+      const tvShowsSources = [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.tvguide.com/rss/news/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://deadline.com/category/tv/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://decider.com/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.cinemablend.com/rss/topic/news/television",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://tvline.com/feed/"
+      ];
+
+      const allArticles: NewsArticle[] = [];
+      
+      // Fetch from all sources in parallel
+      await Promise.all(tvShowsSources.map(async (sourceUrl) => {
+        try {
+          const response = await fetch(sourceUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch from ${sourceUrl}`);
+          }
+          
+          const data = await response.json();
+          
+          if (!data.items || data.items.length === 0) {
+            return;
+          }
+          
+          // Transform items to NewsArticle format
+          const articles = data.items.map((item: any, index: number) => {
+            // Extract image from content or enclosure
+            let imageUrl = null;
+            if (item.enclosure && item.enclosure.link) {
+              imageUrl = item.enclosure.link;
+            } else if (item.thumbnail) {
+              imageUrl = item.thumbnail;
+            } else if (item.content) {
+              const imgMatch = item.content.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/);
+              if (imgMatch && imgMatch[1]) {
+                imageUrl = imgMatch[1];
+              }
+            }
+            
+            return {
+              id: `tvshows-additional-${index}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+              source: {
+                id: data.feed?.title?.toLowerCase().replace(/\s+/g, '-') || "tv-source",
+                name: data.feed?.title || item.author || "TV News Source"
+              },
+              author: item.author || null,
+              title: item.title,
+              description: item.description?.replace(/<[^>]*>/g, '').substring(0, 200) + '...' || null,
+              url: item.link,
+              urlToImage: imageUrl,
+              publishedAt: item.pubDate || new Date().toISOString(),
+              content: item.content?.replace(/<[^>]*>/g, '') || null,
+              category: "tvshows",
+              isTrending: false,
+              isBreaking: false,
+              isEditorsPick: false
+            };
+          });
+          
+          allArticles.push(...articles);
+        } catch (error) {
+          console.error(`Error fetching from ${sourceUrl}:`, error);
+        }
+      }));
+      
+      return allArticles;
+    } catch (error) {
+      console.error("Error fetching additional TV shows sources:", error);
+      return [];
+    }
+  }
+  
+  // Additional sources for specific categories
+  if (category === "bollywood") {
+    // Bollywood specific sources
+    try {
+      const bollywoodSources = [
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.bollywoodhungama.com/rss/news/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.pinkvilla.com/rss/bollywood.xml",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.koimoi.com/feed/"
+      ];
+      
+      const allArticles: NewsArticle[] = [];
+      
+      await Promise.all(bollywoodSources.map(async (sourceUrl) => {
+        try {
+          const response = await fetch(sourceUrl);
+          if (!response.ok) return;
+          
+          const data = await response.json();
+          if (!data.items || data.items.length === 0) return;
+          
+          const articles = data.items.map((item: any, index: number) => {
+            // Extract image
+            let imageUrl = null;
+            if (item.enclosure && item.enclosure.link) {
+              imageUrl = item.enclosure.link;
+            } else if (item.thumbnail) {
+              imageUrl = item.thumbnail;
+            } else if (item.content) {
+              const imgMatch = item.content.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/);
+              if (imgMatch && imgMatch[1]) {
+                imageUrl = imgMatch[1];
+              }
+            }
+            
+            return {
+              id: `bollywood-additional-${index}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+              source: {
+                id: data.feed?.title?.toLowerCase().replace(/\s+/g, '-') || "bollywood-source",
+                name: data.feed?.title || item.author || "Bollywood News Source"
+              },
+              author: item.author || null,
+              title: item.title,
+              description: item.description?.replace(/<[^>]*>/g, '').substring(0, 200) + '...' || null,
+              url: item.link,
+              urlToImage: imageUrl,
+              publishedAt: item.pubDate || new Date().toISOString(),
+              content: item.content?.replace(/<[^>]*>/g, '') || null,
+              category: "bollywood",
+              isTrending: false,
+              isBreaking: false,
+              isEditorsPick: false
+            };
+          });
+          
+          allArticles.push(...articles);
+        } catch (error) {
+          console.error(`Error fetching from ${sourceUrl}:`, error);
+        }
+      }));
+      
+      return allArticles;
+    } catch (error) {
+      console.error("Error fetching additional Bollywood sources:", error);
+      return [];
+    }
+  }
+  
+  return [];
+}
+
+// Enhanced RSS Feed implementation with more sources
 async function fetchFromRSSFeeds(category: string): Promise<NewsArticle[]> {
   try {
-    // Map categories to relevant RSS feeds
+    // Map categories to relevant RSS feeds - expanded with more sources
     const categoryFeeds: Record<string, string[]> = {
       anime: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://www.animenewsnetwork.com/all/rss.xml",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://www.crunchyroll.com/rss/anime"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.crunchyroll.com/rss/anime",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://otakukart.com/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://comicbook.com/anime/rss/",
       ],
       manga: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://www.animenewsnetwork.com/all/rss.xml",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://www.manga-news.com/index.php/feed/"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.manga-news.com/index.php/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://otakumode.com/feed/news/manga",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://comicbook.com/manga/rss/"
       ],
       bollywood: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://www.pinkvilla.com/rss/entertainment.xml"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.pinkvilla.com/rss/entertainment.xml",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.bollywoodhungama.com/rss/news/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.koimoi.com/feed/"
       ],
       hollywood: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://variety.com/feed/",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://www.hollywoodreporter.com/feed"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.hollywoodreporter.com/feed",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://deadline.com/category/film/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://screenrant.com/feed/movie-news/"
       ],
       tvshows: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://ew.com/feed/",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://www.tvguide.com/rss/breaking-news/"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.tvguide.com/rss/breaking-news/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://deadline.com/category/tv/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.cinemablend.com/rss/topic/news/television",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://tvline.com/feed/"
       ],
       comics: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://www.comicbookmovie.com/rss/all-news.php",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://www.cbr.com/feed/"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.cbr.com/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://comicbook.com/comics/rss/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://bleedingcool.com/comics/feed/"
       ],
       kpop: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://www.allkpop.com/rss",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://www.soompi.com/feed"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.soompi.com/feed",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.koreaboo.com/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.hellokpop.com/feed/"
       ],
       celebrity: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://www.tmz.com/rss.xml",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://people.com/tag/celebrity/feed/"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://people.com/tag/celebrity/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.etonline.com/news/rss",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://pagesix.com/feed/"
       ],
       upcoming: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://movieweb.com/rss/movie-news/",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://www.denofgeek.com/feed/"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.denofgeek.com/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://collider.com/feed/",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://screenrant.com/movie-news/feed/"
       ],
       trending: [
         "https://api.rss2json.com/v1/api.json?rss_url=https://variety.com/feed/",
         "https://api.rss2json.com/v1/api.json?rss_url=https://www.hollywoodreporter.com/feed",
-        "https://api.rss2json.com/v1/api.json?rss_url=https://www.cinemablend.com/rss/topic/news/television"
+        "https://api.rss2json.com/v1/api.json?rss_url=https://www.cinemablend.com/rss/topic/news/television",
+        "https://api.rss2json.com/v1/api.json?rss_url=https://ew.com/feed/"
       ]
     };
     
@@ -604,6 +774,66 @@ function getFallbackArticles(category: string): NewsArticle[] {
         isTrending: true,
         isBreaking: false,
         isEditorsPick: true
+      },
+      {
+        id: `tvshows-fallback-2`,
+        title: "Stranger Things Final Season Reveals First Look Photos",
+        description: "Netflix shares exclusive first images from the highly anticipated final season of their hit sci-fi series.",
+        url: "https://example.com/stranger-things-final",
+        urlToImage: "https://via.placeholder.com/640x360.png?text=Stranger+Things+Final+Season",
+        publishedAt: currentDate,
+        source: { id: "fallback", name: "Netflix Insider" },
+        author: "Entertainment Reporter",
+        content: "The images reveal the main cast returning to Hawkins for one last adventure, with hints of new supernatural threats.",
+        category: "tvshows",
+        isTrending: true,
+        isBreaking: false,
+        isEditorsPick: false
+      },
+      {
+        id: `tvshows-fallback-3`,
+        title: "House of the Dragon Season 2 Sets Premiere Date",
+        description: "HBO announces the return date for the Game of Thrones prequel series with a new teaser trailer.",
+        url: "https://example.com/hotd-season2",
+        urlToImage: "https://via.placeholder.com/640x360.png?text=House+of+the+Dragon",
+        publishedAt: currentDate,
+        source: { id: "fallback", name: "HBO Max" },
+        author: "Fantasy Series Specialist",
+        content: "The second season promises to dive deeper into the Targaryen civil war known as the Dance of the Dragons.",
+        category: "tvshows",
+        isTrending: true,
+        isBreaking: true,
+        isEditorsPick: true
+      },
+      {
+        id: `tvshows-fallback-4`,
+        title: "Wednesday Season 2 Adds New Cast Members",
+        description: "Netflix's smash hit expands its ensemble with notable actors joining for the second season.",
+        url: "https://example.com/wednesday-season-2-cast",
+        urlToImage: "https://via.placeholder.com/640x360.png?text=Wednesday+Season+2",
+        publishedAt: currentDate,
+        source: { id: "fallback", name: "Streaming Updates" },
+        author: "Cast News Reporter",
+        content: "The gothic comedy-horror series will introduce new characters to Nevermore Academy when it returns.",
+        category: "tvshows",
+        isTrending: false,
+        isBreaking: false,
+        isEditorsPick: true
+      },
+      {
+        id: `tvshows-fallback-5`,
+        title: "Yellowstone Final Season Delayed Again",
+        description: "Production issues continue to plague the conclusion of the popular modern Western drama.",
+        url: "https://example.com/yellowstone-delay",
+        urlToImage: "https://via.placeholder.com/640x360.png?text=Yellowstone",
+        publishedAt: currentDate,
+        source: { id: "fallback", name: "Western Drama News" },
+        author: "TV Industry Insider",
+        content: "Fans will have to wait longer for the Dutton family saga to conclude due to scheduling conflicts.",
+        category: "tvshows",
+        isTrending: false,
+        isBreaking: true,
+        isEditorsPick: false
       }
     ],
     comics: [
@@ -708,7 +938,12 @@ function getFallbackArticles(category: string): NewsArticle[] {
     ]
   };
   
-  return fallbackArticles[category] || fallbackArticles.trending;
+  // Make sure each category has at least 5 fallback articles
+  if (category === "tvshows") {
+    return fallbackArticles.tvshows || fallbackArticles.trending;
+  }
+  
+  return (fallbackArticles[category] || fallbackArticles.trending).slice(0, 5);
 }
 
 // A function to handle errors when fetching news fails
