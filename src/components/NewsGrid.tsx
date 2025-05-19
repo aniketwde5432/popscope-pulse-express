@@ -58,7 +58,7 @@ export function NewsGrid({ articles, isLoading, emptyMessage, onRefresh }: NewsG
 
   if (articles.length === 0) {
     return (
-      <div className="text-center py-10">
+      <div className="text-center py-10 animate-scale-in">
         <h3 className="text-xl font-playfair mb-2">No articles found</h3>
         <p className="text-muted-foreground">
           {emptyMessage || "We couldn't find any articles in this category. Please check back later."}
@@ -85,18 +85,30 @@ export function NewsGrid({ articles, isLoading, emptyMessage, onRefresh }: NewsG
         ))}
       </div>
       
-      {hasMoreArticles && (
-        <div className="flex justify-center mt-8">
+      <div className="flex justify-between items-center mt-8">
+        {onRefresh && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            className="rounded-full"
+          >
+            <RefreshCw size={16} className="mr-2" />
+            Refresh Content
+          </Button>
+        )}
+        
+        {hasMoreArticles && (
           <Button
             variant="outline"
             size="lg"
             onClick={() => setPage(page + 1)}
-            className="rounded-full px-6"
+            className="rounded-full px-6 ml-auto"
           >
             Load more articles
           </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

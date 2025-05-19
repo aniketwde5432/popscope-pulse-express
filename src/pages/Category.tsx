@@ -1,10 +1,10 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { NewsGrid } from "@/components/NewsGrid";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ArrowLeft } from "lucide-react";
+import { RefreshCw, ArrowLeft, Clock } from "lucide-react";
 import { fetchNewsByCategory, handleNewsError, type NewsArticle } from "@/services/newsService";
 import { useToast } from "@/components/ui/use-toast";
 import { FeaturedNews } from "@/components/FeaturedNews";
@@ -22,6 +22,8 @@ const categories: Record<string, string> = {
   trending: "Trending"
 };
 
+const REFRESH_INTERVAL = 15 * 60 * 1000; // 15 minutes in milliseconds
+
 const Category = () => {
   const { categoryId } = useParams<{ categoryId: string }>();
   const navigate = useNavigate();
@@ -29,51 +31,15 @@ const Category = () => {
   const [featuredArticle, setFeaturedArticle] = useState<NewsArticle | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const { toast } = useToast();
 
   const categoryName = categoryId ? categories[categoryId] || categoryId.charAt(0).toUpperCase() + categoryId.slice(1) : "Category";
 
-  useEffect(() => {
-    if (!categoryId) return;
-
-    const loadNews = async () => {
-      setIsLoading(true);
-      try {
-        const fetchedArticles = await fetchNewsByCategory(categoryId);
-        
-        if (fetchedArticles.length === 0) {
-          setArticles([]);
-          setFeaturedArticle(undefined);
-          return;
-        }
-        
-        // Set the first article with image as featured if available
-        const withImages = fetchedArticles.filter(a => a.urlToImage);
-        if (withImages.length > 0) {
-          setFeaturedArticle(withImages[0]);
-          // Remove the featured article from the grid
-          setArticles(fetchedArticles.filter(a => a.id !== withImages[0].id));
-        } else if (fetchedArticles.length > 0) {
-          setFeaturedArticle(fetchedArticles[0]);
-          setArticles(fetchedArticles.slice(1));
-        } else {
-          setFeaturedArticle(undefined);
-          setArticles([]);
-        }
-      } catch (error) {
-        handleNewsError(error as Error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadNews();
-  }, [categoryId]);
-
-  const handleRefresh = async () => {
+  const loadNews = useCallback(async (showLoading = true) => {
     if (!categoryId) return;
     
-    setIsRefreshing(true);
+    if (showLoading) setIsLoading(true);
     try {
       const fetchedArticles = await fetchNewsByCategory(categoryId);
       
@@ -83,25 +49,68 @@ const Category = () => {
         return;
       }
       
+      // Set the first article with image as featured if available
       const withImages = fetchedArticles.filter(a => a.urlToImage);
       if (withImages.length > 0) {
         setFeaturedArticle(withImages[0]);
+        // Remove the featured article from the grid
         setArticles(fetchedArticles.filter(a => a.id !== withImages[0].id));
       } else if (fetchedArticles.length > 0) {
         setFeaturedArticle(fetchedArticles[0]);
         setArticles(fetchedArticles.slice(1));
+      } else {
+        setFeaturedArticle(undefined);
+        setArticles([]);
       }
       
-      toast({
-        title: "News refreshed",
-        description: "Latest headlines have been loaded",
-        duration: 3000,
-      });
+      // Update last refresh time
+      setLastRefresh(new Date());
     } catch (error) {
       handleNewsError(error as Error);
     } finally {
+      if (showLoading) setIsLoading(false);
       setIsRefreshing(false);
     }
+  }, [categoryId]);
+
+  // Initial load
+  useEffect(() => {
+    loadNews();
+  }, [categoryId, loadNews]);
+
+  // Setup periodic refresh
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      loadNews(false);
+    }, REFRESH_INTERVAL);
+    
+    return () => clearInterval(intervalId);
+  }, [categoryId, loadNews]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadNews(false);
+    
+    toast({
+      title: "News refreshed",
+      description: "Latest headlines have been loaded",
+      duration: 3000,
+    });
+  };
+
+  // Format the last refresh time
+  const getLastRefreshTime = () => {
+    const now = new Date();
+    const diffMs = now.getTime() - lastRefresh.getTime();
+    const diffMins = Math.round(diffMs / 60000); // convert to minutes
+    
+    if (diffMins < 1) return "just now";
+    if (diffMins === 1) return "1 minute ago";
+    if (diffMins < 60) return `${diffMins} minutes ago`;
+    
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs === 1) return "1 hour ago";
+    return `${diffHrs} hours ago`;
   };
 
   return (
@@ -109,7 +118,7 @@ const Category = () => {
       <Header />
       
       <main className="flex-1 container pt-6 pb-12">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Button 
               variant="outline" 
@@ -125,16 +134,22 @@ const Category = () => {
             </h2>
           </div>
           
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing || isLoading}
-            className="rounded-full"
-          >
-            <RefreshCw size={16} className={isRefreshing ? "animate-spin mr-2" : "mr-2"} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="text-muted-foreground text-sm hidden md:flex items-center">
+              <Clock size={14} className="mr-1" />
+              <span>Updated {getLastRefreshTime()}</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing || isLoading}
+              className="rounded-full"
+            >
+              <RefreshCw size={16} className={isRefreshing ? "animate-spin mr-2" : "mr-2"} />
+              Refresh
+            </Button>
+          </div>
         </div>
         
         <div className="mt-6">
